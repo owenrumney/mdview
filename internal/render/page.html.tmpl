@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}}</title>
+<style>{{.StyleCSS}}</style>
+</head>
+<body data-theme="{{.Theme}}">
+<main class="markdown-body">
+{{.Body}}
+</main>
+<script>
+  window.MDVIEW_MERMAID_THEME = "{{.MermaidTheme}}";
+  window.MDVIEW_MERMAID_SECURITY = "{{.MermaidSecurity}}";
+</script>
+{{if .WatchMode}}
+<script src="/assets/mermaid.min.js"></script>
+{{else}}
+<script>{{.MermaidInline}}</script>
+{{end}}
+<script>{{.MermaidInit}}</script>
+<script>{{.CopyJS}}</script>
+{{if .WatchMode}}
+<script>
+  (function () {
+    var es = new EventSource('/events');
+    es.addEventListener('reload', function () { location.reload(); });
+  })();
+</script>
+{{end}}
+</body>
+</html>
