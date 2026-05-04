@@ -28,9 +28,12 @@ One-shot mode renders the file to a temp HTML file and opens it in your default 
 | Flag | Description |
 | --- | --- |
 | `-w`, `--watch` | Serve the file over a local HTTP server and reload the browser on changes |
+| `--pdf` | Render to PDF (next to the input file) and open it. Requires Chrome/Chromium/Edge/Brave |
 | `--light` | Light theme (default is dark) |
 | `--unsafe` | Allow raw HTML in markdown and relaxed Mermaid security. Only use on trusted files |
 | `--version` | Print version info |
+
+`--watch` and `--pdf` are mutually exclusive.
 
 ### Examples
 
@@ -52,6 +55,12 @@ Light mode:
 mdview --light notes.md
 ```
 
+Render to PDF and open in the system PDF viewer (e.g. macOS Preview). Headings become bookmarks in the navigation sidebar:
+
+```bash
+mdview --pdf notes.md   # writes notes.pdf alongside the input
+```
+
 ## Features
 
 - GitHub-flavored Markdown (tables, task lists, strikethrough, autolinks)
@@ -61,6 +70,7 @@ mdview --light notes.md
 - Copy-to-clipboard buttons on code blocks
 - Click images or Mermaid diagrams to zoom (Esc or click backdrop to close)
 - Live reload over Server-Sent Events when `--watch` is set
+- PDF export with heading bookmarks when `--pdf` is set
 - Auto-generated heading IDs
 
 ## Development
@@ -85,6 +95,7 @@ The bundled Mermaid version is controlled by `MERMAID_VERSION` in the Makefile.
 cmd/mdview/         # CLI entrypoint
 internal/render/    # Markdown -> HTML, embedded assets, Mermaid extension
 internal/server/    # Watch-mode HTTP server with SSE live reload
+internal/pdf/       # Headless-Chrome PDF generation
 internal/browser/   # Cross-platform "open URL" helper
 examples/           # Sample markdown
 ```
