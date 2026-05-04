@@ -59,6 +59,7 @@ mdview --light notes.md
 - Syntax highlighting via Chroma (`github-dark` / `github`)
 - Mermaid diagrams (bundled, no network required)
 - Copy-to-clipboard buttons on code blocks
+- Click images or Mermaid diagrams to zoom (Esc or click backdrop to close)
 - Live reload over Server-Sent Events when `--watch` is set
 - Auto-generated heading IDs
 
