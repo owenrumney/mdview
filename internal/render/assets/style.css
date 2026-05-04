@@ -88,6 +88,8 @@ body {
   padding: 1em;
   border-radius: 6px;
   overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 .markdown-body pre code {
   background: none;
@@ -98,6 +100,8 @@ body {
   background: transparent;
   padding: 1em;
   text-align: center;
+  white-space: normal;
+  word-break: normal;
 }
 .markdown-body table {
   border-collapse: collapse;
