@@ -124,7 +124,8 @@ func watchLoop(ctx context.Context, w *fsnotify.Watcher, target string, hub *rel
 			mu.Lock()
 			pending = false
 			mu.Unlock()
-			hub.broadcast()
+			n := hub.broadcast()
+			slog.Info("reload", "file", target, "clients", n)
 		})
 	}
 	for {
@@ -190,7 +191,7 @@ func (h *reloadHub) unsubscribe(ch chan struct{}) {
 	close(ch)
 }
 
-func (h *reloadHub) broadcast() {
+func (h *reloadHub) broadcast() int {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	for ch := range h.clients {
@@ -199,6 +200,7 @@ func (h *reloadHub) broadcast() {
 		default:
 		}
 	}
+	return len(h.clients)
 }
 
 func (h *reloadHub) handleSSE(w http.ResponseWriter, r *http.Request) {

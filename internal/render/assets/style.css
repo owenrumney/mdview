@@ -109,7 +109,9 @@ body {
   padding: 0.4em 0.8em;
 }
 .markdown-body th { background: var(--code-bg); }
-.markdown-body img { max-width: 100%; }
+.markdown-body img { max-width: 100%; cursor: zoom-in; }
+.markdown-body a img { cursor: pointer; }
+.markdown-body pre.mermaid svg { cursor: zoom-in; }
 .markdown-body hr {
   height: 1px;
   background: var(--border);
@@ -164,4 +166,37 @@ body {
   border-top: 1px solid var(--err-border);
   color: var(--fg);
   opacity: 0.8;
+}
+.mdview-zoom-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  z-index: 9999;
+  cursor: zoom-out;
+}
+.mdview-zoom-overlay.open { display: flex; }
+.mdview-zoom-content {
+  width: 95vw;
+  height: 95vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.mdview-zoom-content img {
+  max-width: 95vw;
+  max-height: 95vh;
+  width: auto;
+  height: auto;
+  background: var(--bg);
+  border-radius: 6px;
+}
+.mdview-zoom-content svg {
+  width: 95vw;
+  height: 95vh;
+  background: var(--bg);
+  border-radius: 6px;
 }

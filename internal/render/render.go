@@ -32,6 +32,9 @@ var MermaidJS []byte
 //go:embed assets/copy-buttons.js
 var copyJS string
 
+//go:embed assets/zoom.js
+var zoomJS string
+
 //go:embed assets/mermaid-init.js
 var mermaidInitJS string
 
@@ -58,6 +61,7 @@ type pageData struct {
 	Body            template.HTML
 	StyleCSS        template.CSS
 	CopyJS          template.JS
+	ZoomJS          template.JS
 	MermaidInit     template.JS
 	WatchMode       bool
 	Theme           string
@@ -87,6 +91,7 @@ func File(path string, opts Options) ([]byte, error) {
 		Body:            template.HTML(body),
 		StyleCSS:        template.CSS(styleCSS),
 		CopyJS:          template.JS(copyJS),
+		ZoomJS:          template.JS(zoomJS),
 		MermaidInit:     template.JS(mermaidInitJS),
 		WatchMode:       opts.WatchMode,
 		Theme:           string(opts.Theme),
