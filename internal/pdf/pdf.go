@@ -38,7 +38,7 @@ func Generate(ctx context.Context, htmlPath, outPath string) error {
 	}
 	runCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(runCtx, bin, args...)
+	cmd := exec.CommandContext(runCtx, bin, args...) // #nosec G204 -- bin is from FindBrowser, args are internally constructed
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("generate pdf via %s: %w (output: %s)", filepath.Base(bin), err, string(out))

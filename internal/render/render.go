@@ -71,7 +71,7 @@ type pageData struct {
 }
 
 func File(path string, opts Options) ([]byte, error) {
-	src, err := os.ReadFile(path)
+	src, err := os.ReadFile(path) // #nosec G304 -- path comes from CLI arg by design
 	if err != nil {
 		return nil, fmt.Errorf("read %s: %w", path, err)
 	}
@@ -88,11 +88,11 @@ func File(path string, opts Options) ([]byte, error) {
 	}
 	data := pageData{
 		Title:           title,
-		Body:            template.HTML(body),
-		StyleCSS:        template.CSS(styleCSS),
-		CopyJS:          template.JS(copyJS),
-		ZoomJS:          template.JS(zoomJS),
-		MermaidInit:     template.JS(mermaidInitJS),
+		Body:            template.HTML(body),         // #nosec G203 -- output of trusted goldmark renderer
+		StyleCSS:        template.CSS(styleCSS),      // #nosec G203 -- embedded constant
+		CopyJS:          template.JS(copyJS),         // #nosec G203 -- embedded constant
+		ZoomJS:          template.JS(zoomJS),         // #nosec G203 -- embedded constant
+		MermaidInit:     template.JS(mermaidInitJS),  // #nosec G203 -- embedded constant
 		WatchMode:       opts.WatchMode,
 		Theme:           string(opts.Theme),
 		MermaidTheme:    mermaidThemeFor(opts.Theme),
@@ -100,7 +100,7 @@ func File(path string, opts Options) ([]byte, error) {
 	}
 	if !opts.WatchMode {
 		safe := scriptCloseRe.ReplaceAllString(string(MermaidJS), `<\/script`)
-		data.MermaidInline = template.JS(safe)
+		data.MermaidInline = template.JS(safe) // #nosec G203 -- embedded constant with </script> escaped
 	}
 	var buf bytes.Buffer
 	if err := pageTmpl.Execute(&buf, data); err != nil {

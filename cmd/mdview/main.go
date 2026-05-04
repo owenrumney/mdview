@@ -24,9 +24,9 @@ var (
 
 func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer cancel()
-
-	if err := newRootCmd().ExecuteContext(ctx); err != nil {
+	err := newRootCmd().ExecuteContext(ctx)
+	cancel()
+	if err != nil {
 		os.Exit(1)
 	}
 }
@@ -86,7 +86,7 @@ func runOnce(path string, opts render.Options) error {
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(out, html, 0o644); err != nil {
+	if err := os.WriteFile(out, html, 0o600); err != nil {
 		return fmt.Errorf("write %s: %w", out, err)
 	}
 	fmt.Fprintf(os.Stderr, "rendered %s\n", out)
@@ -102,7 +102,7 @@ func runPDF(ctx context.Context, path string, opts render.Options) error {
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(htmlPath, html, 0o644); err != nil {
+	if err := os.WriteFile(htmlPath, html, 0o600); err != nil {
 		return fmt.Errorf("write %s: %w", htmlPath, err)
 	}
 	pdfPath := pdfOutputPath(path)

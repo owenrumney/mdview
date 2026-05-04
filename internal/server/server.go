@@ -64,7 +64,7 @@ func Run(ctx context.Context, path string, opts render.Options) error {
 	if err != nil {
 		return fmt.Errorf("fsnotify: %w", err)
 	}
-	defer watcher.Close()
+	defer func() { _ = watcher.Close() }()
 	if err := watcher.Add(abs); err != nil {
 		return fmt.Errorf("watch file: %w", err)
 	}
