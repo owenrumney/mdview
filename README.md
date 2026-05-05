@@ -29,6 +29,7 @@ One-shot mode renders the file to a temp HTML file and opens it in your default 
 | --- | --- |
 | `-w`, `--watch` | Serve the file over a local HTTP server and reload the browser on changes |
 | `--pdf` | Render to PDF (next to the input file) and open it. Requires Chrome/Chromium/Edge/Brave |
+| `-c`, `--contents` | Show a table-of-contents sidebar with links to each heading |
 | `--light` | Light theme (default is dark) |
 | `--unsafe` | Allow raw HTML in markdown and relaxed Mermaid security. Only use on trusted files |
 | `--version` | Print version info |
@@ -71,6 +72,7 @@ mdview --pdf notes.md   # writes notes.pdf alongside the input
 - Click images or Mermaid diagrams to zoom (Esc or click backdrop to close)
 - Live reload over Server-Sent Events when `--watch` is set
 - PDF export with heading bookmarks when `--pdf` is set
+- Optional table-of-contents sidebar with `--contents`
 - Auto-generated heading IDs
 
 ## Development

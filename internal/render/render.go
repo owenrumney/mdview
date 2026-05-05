@@ -13,11 +13,19 @@ import (
 
 	"github.com/yuin/goldmark"
 	highlighting "github.com/yuin/goldmark-highlighting/v2"
+	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/renderer"
 	gmhtml "github.com/yuin/goldmark/renderer/html"
+	"github.com/yuin/goldmark/text"
 )
+
+type TOCEntry struct {
+	Level int
+	Text  string
+	ID    string
+}
 
 type Theme string
 
@@ -54,6 +62,7 @@ type Options struct {
 	Title     string
 	Theme     Theme
 	Unsafe    bool
+	Contents  bool
 }
 
 type pageData struct {
@@ -68,6 +77,8 @@ type pageData struct {
 	MermaidTheme    string
 	MermaidSecurity string
 	MermaidInline   template.JS
+	Contents        bool
+	TOC             []TOCEntry
 }
 
 func File(path string, opts Options) ([]byte, error) {
@@ -82,7 +93,7 @@ func File(path string, opts Options) ([]byte, error) {
 	if title == "" {
 		title = filepath.Base(path)
 	}
-	body, err := toHTML(src, opts.Theme, opts.Unsafe)
+	body, toc, err := toHTML(src, opts.Theme, opts.Unsafe)
 	if err != nil {
 		return nil, err
 	}
@@ -97,6 +108,8 @@ func File(path string, opts Options) ([]byte, error) {
 		Theme:           string(opts.Theme),
 		MermaidTheme:    mermaidThemeFor(opts.Theme),
 		MermaidSecurity: mermaidSecurityFor(opts.Unsafe),
+		Contents:        opts.Contents && len(toc) > 0,
+		TOC:             toc,
 	}
 	if !opts.WatchMode {
 		safe := scriptCloseRe.ReplaceAllString(string(MermaidJS), `<\/script`)
@@ -119,7 +132,7 @@ func TempFilePath(sourcePath string) (string, error) {
 	return filepath.Join(os.TempDir(), name), nil
 }
 
-func toHTML(src []byte, theme Theme, unsafe bool) ([]byte, error) {
+func toHTML(src []byte, theme Theme, unsafe bool) ([]byte, []TOCEntry, error) {
 	chromaStyle := "github-dark"
 	if theme == ThemeLight {
 		chromaStyle = "github"
@@ -143,11 +156,61 @@ func toHTML(src []byte, theme Theme, unsafe bool) ([]byte, error) {
 		),
 		goldmark.WithRendererOptions(rendererOpts...),
 	)
+	doc := md.Parser().Parse(text.NewReader(src))
+	toc := extractTOC(doc, src)
 	var buf bytes.Buffer
-	if err := md.Convert(src, &buf); err != nil {
-		return nil, fmt.Errorf("convert markdown: %w", err)
+	if err := md.Renderer().Render(&buf, src, doc); err != nil {
+		return nil, nil, fmt.Errorf("convert markdown: %w", err)
 	}
-	return buf.Bytes(), nil
+	return buf.Bytes(), toc, nil
+}
+
+func extractTOC(doc ast.Node, src []byte) []TOCEntry {
+	var toc []TOCEntry
+	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering {
+			return ast.WalkContinue, nil
+		}
+		h, ok := n.(*ast.Heading)
+		if !ok {
+			return ast.WalkContinue, nil
+		}
+		id := ""
+		if v, ok := h.AttributeString("id"); ok {
+			if b, ok := v.([]byte); ok {
+				id = string(b)
+			}
+		}
+		if id == "" {
+			return ast.WalkContinue, nil
+		}
+		toc = append(toc, TOCEntry{
+			Level: h.Level,
+			Text:  headingText(h, src),
+			ID:    id,
+		})
+		return ast.WalkContinue, nil
+	})
+	return toc
+}
+
+func headingText(h *ast.Heading, src []byte) string {
+	var buf bytes.Buffer
+	_ = ast.Walk(h, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering {
+			return ast.WalkContinue, nil
+		}
+		switch v := n.(type) {
+		case *ast.Text:
+			buf.Write(v.Segment.Value(src))
+		case *ast.String:
+			buf.Write(v.Value)
+		case *ast.AutoLink:
+			buf.Write(v.Label(src))
+		}
+		return ast.WalkContinue, nil
+	})
+	return buf.String()
 }
 
 func mermaidThemeFor(t Theme) string {
