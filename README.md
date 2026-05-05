@@ -4,6 +4,15 @@ A small CLI that renders a Markdown file to HTML and opens it in your browser. G
 
 ## Install
 
+### MacOS - Homebrew
+
+The quickest way on MacOS is to install with brew
+
+```
+brew tap owenrumney/tools
+brew install --cask mdview
+```
+
 ```bash
 go install github.com/owenrumney/mdview/cmd/mdview@latest
 ```
@@ -11,8 +20,7 @@ go install github.com/owenrumney/mdview/cmd/mdview@latest
 Or build from source:
 
 ```bash
-make build   # produces ./bin/mdview
-make install # go install ./cmd/mdview
+make install 
 ```
 
 ## Usage
