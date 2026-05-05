@@ -33,10 +33,11 @@ func main() {
 
 func newRootCmd() *cobra.Command {
 	var (
-		watch   bool
-		light   bool
-		unsafe  bool
-		pdfMode bool
+		watch    bool
+		light    bool
+		unsafe   bool
+		pdfMode  bool
+		contents bool
 	)
 
 	cmd := &cobra.Command{
@@ -58,7 +59,7 @@ func newRootCmd() *cobra.Command {
 			if pdfMode {
 				theme = render.ThemeLight
 			}
-			opts := render.Options{Theme: theme, Unsafe: unsafe}
+			opts := render.Options{Theme: theme, Unsafe: unsafe, Contents: contents}
 			if watch {
 				return server.Run(cmd.Context(), path, opts)
 			}
@@ -72,6 +73,7 @@ func newRootCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&light, "light", false, "render in light mode (default is dark)")
 	cmd.Flags().BoolVar(&unsafe, "unsafe", false, "allow raw HTML in markdown and relaxed mermaid security (only use on trusted files)")
 	cmd.Flags().BoolVar(&pdfMode, "pdf", false, "render to PDF (requires Chrome/Chromium/Edge/Brave) and open it")
+	cmd.Flags().BoolVarP(&contents, "contents", "c", false, "show a table-of-contents sidebar with header links")
 	cmd.Version = fmt.Sprintf("%s (commit %s, built %s)", version, commit, date)
 	cmd.SilenceUsage = true
 	return cmd

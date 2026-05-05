@@ -6,7 +6,17 @@
 <title>{{.Title}}</title>
 <style>{{.StyleCSS}}</style>
 </head>
-<body data-theme="{{.Theme}}">
+<body data-theme="{{.Theme}}"{{if .Contents}} class="has-toc"{{end}}>
+{{if .Contents}}
+<nav class="mdview-toc" aria-label="Table of contents">
+<div class="mdview-toc-inner">
+<div class="mdview-toc-title">Contents</div>
+<ul>
+{{range .TOC}}<li class="toc-l{{.Level}}"><a href="#{{.ID}}">{{.Text}}</a></li>
+{{end}}</ul>
+</div>
+</nav>
+{{end}}
 <main class="markdown-body">
 {{.Body}}
 </main>
