@@ -37,12 +37,14 @@ One-shot mode renders the file to a temp HTML file and opens it in your default 
 | --- | --- |
 | `-w`, `--watch` | Serve the file over a local HTTP server and reload the browser on changes |
 | `--pdf` | Render to PDF (next to the input file) and open it. Requires Chrome/Chromium/Edge/Brave |
+| `--html` | Render to HTML (next to the input file) and open it |
+| `--force` | Overwrite an existing output file when using `--pdf` or `--html` |
 | `-c`, `--contents` | Show a table-of-contents sidebar with links to each heading |
 | `--light` | Light theme (default is dark) |
 | `--unsafe` | Allow raw HTML in markdown and relaxed Mermaid security. Only use on trusted files |
 | `--version` | Print version info |
 
-`--watch` and `--pdf` are mutually exclusive.
+`--watch`, `--pdf`, and `--html` are mutually exclusive. If the output file already exists, use `--force` to overwrite it.
 
 ### Examples
 
@@ -68,6 +70,14 @@ Render to PDF and open in the system PDF viewer (e.g. macOS Preview). Headings b
 
 ```bash
 mdview --pdf notes.md   # writes notes.pdf alongside the input
+mdview --pdf --force notes.md  # overwrites notes.pdf if it already exists
+```
+
+Render to HTML and open in the browser:
+
+```bash
+mdview --html notes.md  # writes notes.html alongside the input
+mdview --html --force notes.md # overwrites notes.html if it already exists
 ```
 
 ## Features
@@ -80,6 +90,7 @@ mdview --pdf notes.md   # writes notes.pdf alongside the input
 - Click images or Mermaid diagrams to zoom (Esc or click backdrop to close)
 - Live reload over Server-Sent Events when `--watch` is set
 - PDF export with heading bookmarks when `--pdf` is set
+- HTML export when `--html` is set
 - Optional table-of-contents sidebar with `--contents`
 - Auto-generated heading IDs
 
