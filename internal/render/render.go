@@ -13,6 +13,7 @@ import (
 
 	"github.com/yuin/goldmark"
 	highlighting "github.com/yuin/goldmark-highlighting/v2"
+	meta "github.com/yuin/goldmark-meta"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/parser"
@@ -89,13 +90,16 @@ func File(path string, opts Options) ([]byte, error) {
 	if opts.Theme == "" {
 		opts.Theme = ThemeDark
 	}
-	title := opts.Title
-	if title == "" {
-		title = filepath.Base(path)
-	}
-	body, toc, err := toHTML(src, opts.Theme, opts.Unsafe)
+	body, toc, metaTitle, err := toHTML(src, opts.Theme, opts.Unsafe)
 	if err != nil {
 		return nil, err
+	}
+	title := opts.Title
+	if title == "" {
+		title = metaTitle
+	}
+	if title == "" {
+		title = filepath.Base(path)
 	}
 	data := pageData{
 		Title:           title,
@@ -132,7 +136,7 @@ func TempFilePath(sourcePath string) (string, error) {
 	return filepath.Join(os.TempDir(), name), nil
 }
 
-func toHTML(src []byte, theme Theme, unsafe bool) ([]byte, []TOCEntry, error) {
+func toHTML(src []byte, theme Theme, unsafe bool) ([]byte, []TOCEntry, string, error) {
 	chromaStyle := "github-dark"
 	if theme == ThemeLight {
 		chromaStyle = "github"
@@ -150,19 +154,30 @@ func toHTML(src []byte, theme Theme, unsafe bool) ([]byte, []TOCEntry, error) {
 				highlighting.WithStyle(chromaStyle),
 			),
 			&mermaidExt{},
+			meta.Meta,
 		),
 		goldmark.WithParserOptions(
 			parser.WithAutoHeadingID(),
 		),
 		goldmark.WithRendererOptions(rendererOpts...),
 	)
-	doc := md.Parser().Parse(text.NewReader(src))
+	pc := parser.NewContext()
+	doc := md.Parser().Parse(text.NewReader(src), parser.WithContext(pc))
 	toc := extractTOC(doc, src)
 	var buf bytes.Buffer
 	if err := md.Renderer().Render(&buf, src, doc); err != nil {
-		return nil, nil, fmt.Errorf("convert markdown: %w", err)
+		return nil, nil, "", fmt.Errorf("convert markdown: %w", err)
 	}
-	return buf.Bytes(), toc, nil
+	return buf.Bytes(), toc, metaTitle(meta.Get(pc)), nil
+}
+
+func metaTitle(m map[string]any) string {
+	for _, k := range []string{"title", "name"} {
+		if v, ok := m[k].(string); ok && v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 func extractTOC(doc ast.Node, src []byte) []TOCEntry {
