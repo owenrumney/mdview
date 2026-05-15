@@ -75,7 +75,7 @@ func newRootCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVarP(&watch, "watch", "w", false, "watch the file and reload the browser on changes")
-	cmd.Flags().BoolVar(&light, "light", false, "render in light mode (default is dark)")
+	cmd.Flags().BoolVarP(&light, "light", "l", false, "render in light mode (default is dark)")
 	cmd.Flags().BoolVar(&unsafe, "unsafe", false, "allow raw HTML in markdown and relaxed mermaid security (only use on trusted files)")
 	cmd.Flags().BoolVar(&pdfMode, "pdf", false, "render to PDF (requires Chrome/Chromium/Edge/Brave) and open it")
 	cmd.Flags().BoolVar(&htmlMode, "html", false, "render to HTML next to the input file and open it")
