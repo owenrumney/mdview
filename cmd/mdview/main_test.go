@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -224,6 +225,113 @@ func TestWriteOutputFileSymlink(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestRootCmdPromptsToCreateMissingFile(t *testing.T) {
+	dir := t.TempDir()
+	mdPath := filepath.Join(dir, "notes.md")
+	opened := ""
+	stubOpenBrowser(t, func(path string) error {
+		opened = path
+		return nil
+	})
+
+	var stderr bytes.Buffer
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{mdPath})
+	cmd.SetIn(strings.NewReader("yes\n"))
+	cmd.SetOut(io.Discard)
+	cmd.SetErr(&stderr)
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() unexpected error: %v", err)
+	}
+	if opened == "" {
+		t.Fatal("openBrowser was not called after creating missing file")
+	}
+	got, err := os.ReadFile(mdPath)
+	if err != nil {
+		t.Fatalf("read created markdown: %v", err)
+	}
+	if string(got) != "" {
+		t.Fatalf("created markdown = %q, want empty file", got)
+	}
+	if !strings.Contains(stderr.String(), "Create it? [y/N]") {
+		t.Fatalf("stderr = %q, want create prompt", stderr.String())
+	}
+}
+
+func TestRootCmdDoesNotCreateMissingFileWhenDeclined(t *testing.T) {
+	mdPath := filepath.Join(t.TempDir(), "notes.md")
+	opened := ""
+	stubOpenBrowser(t, func(path string) error {
+		opened = path
+		return nil
+	})
+
+	var stderr bytes.Buffer
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{mdPath})
+	cmd.SetIn(strings.NewReader("no\n"))
+	cmd.SetOut(io.Discard)
+	cmd.SetErr(&stderr)
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("Execute() error = nil, want missing file error")
+	}
+	if !strings.Contains(err.Error(), "does not exist") {
+		t.Fatalf("Execute() error = %q, want missing file error", err)
+	}
+	if opened != "" {
+		t.Fatalf("opened = %q, want browser not opened", opened)
+	}
+	if _, statErr := os.Stat(mdPath); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("created file stat error = %v, want not exist", statErr)
+	}
+	if !strings.Contains(stderr.String(), "Create it? [y/N]") {
+		t.Fatalf("stderr = %q, want create prompt", stderr.String())
+	}
+}
+
+func TestRootCmdChatRejectsOutputModes(t *testing.T) {
+	mdPath := filepath.Join(t.TempDir(), "notes.md")
+	if err := os.WriteFile(mdPath, []byte("# Notes\n"), 0o600); err != nil {
+		t.Fatalf("write markdown: %v", err)
+	}
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"--chat", "--pdf", mdPath})
+	cmd.SetOut(io.Discard)
+	cmd.SetErr(io.Discard)
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("Execute() error = nil, want --chat output mode error")
+	}
+	if !strings.Contains(err.Error(), "--chat cannot be used with --pdf or --html") {
+		t.Fatalf("Execute() error = %q, want --chat output mode error", err)
+	}
+}
+
+func TestRootCmdChatBackendFlagsRequireChat(t *testing.T) {
+	mdPath := filepath.Join(t.TempDir(), "notes.md")
+	if err := os.WriteFile(mdPath, []byte("# Notes\n"), 0o600); err != nil {
+		t.Fatalf("write markdown: %v", err)
+	}
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"--watch", "--chat-agent", "watchtower", "--chat-session", "wt-test", mdPath})
+	cmd.SetOut(io.Discard)
+	cmd.SetErr(io.Discard)
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("Execute() error = nil, want chat backend flags require --chat error")
+	}
+	if !strings.Contains(err.Error(), "require --chat") {
+		t.Fatalf("Execute() error = %q, want require --chat error", err)
 	}
 }
 
