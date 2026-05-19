@@ -6,23 +6,56 @@
 <title>{{.Title}}</title>
 <style>{{.StyleCSS}}</style>
 </head>
-<body data-theme="{{.Theme}}"{{if .Contents}} class="has-toc"{{end}}>
+<body data-theme="{{.Theme}}" class="{{if .HasFileTree}}has-file-explorer {{end}}{{if .Contents}}has-toc {{end}}{{if .Chat}}has-chat{{end}}">
+{{if .HasFileTree}}
+<aside class="mdview-file-explorer" id="mdview-file-explorer" aria-label="Markdown files">
+  <button type="button" class="mdview-file-explorer-toggle" id="mdview-file-explorer-toggle" aria-label="Collapse file explorer" aria-expanded="true">‹</button>
+  <div class="mdview-file-explorer-inner">
+    <div class="mdview-file-tree-title">Files</div>
+    <div class="mdview-file-tree" id="mdview-file-tree"></div>
+  </div>
+</aside>
+{{end}}
 {{if .Contents}}
-<nav class="mdview-toc" aria-label="Table of contents">
+<nav class="mdview-toc" id="mdview-toc" aria-label="Table of contents">
+<div class="mdview-toc-resizer" id="mdview-toc-resizer" aria-hidden="true"></div>
 <div class="mdview-toc-inner">
 <div class="mdview-toc-title">Contents</div>
-<ul>
+<ul id="mdview-toc-list">
 {{range .TOC}}<li class="toc-l{{.Level}}"><a href="#{{.ID}}">{{.Text}}</a></li>
 {{end}}</ul>
 </div>
 </nav>
 {{end}}
-<main class="markdown-body">
-{{.Body}}
+<main class="markdown-body" id="mdview-document">
+{{if .HasDocument}}{{.Body}}{{else}}<div class="mdview-empty-state" id="mdview-empty-state">Select a markdown file from the sidebar to render it.</div>{{end}}
 </main>
+{{if .Chat}}
+<aside class="mdview-chat" id="mdview-chat" aria-label="Document chat">
+  <div class="mdview-chat-resizer" id="mdview-chat-resizer" aria-hidden="true"></div>
+  <div class="mdview-chat-header">
+    <div>
+      <div class="mdview-chat-title">Chat</div>
+      <div class="mdview-chat-subtitle">Experimental local agent sidebar{{if .CurrentFile}} · {{.CurrentFile}}{{end}}{{if .ChatAgent}} · {{.ChatAgent}}{{end}}{{if .ChatSession}} · {{.ChatSession}}{{end}}</div>
+    </div>
+  </div>
+  <div class="mdview-chat-messages" id="mdview-chat-messages">
+    <div class="mdview-chat-message system">Ask about this document.{{if eq .ChatAgent "watchtower"}} Messages are bridged through the Watchtower session.{{else if eq .ChatAgent "pi"}} Messages are sent to Pi.{{else}} For now this is a local mock backend; agent wiring comes next.{{end}}</div>
+  </div>
+  <div class="mdview-chat-selection" id="mdview-chat-selection" hidden>
+    <span id="mdview-chat-selection-text"></span>
+    <button type="button" id="mdview-chat-selection-clear" aria-label="Clear attached selection">×</button>
+  </div>
+  <form class="mdview-chat-form" id="mdview-chat-form">
+    <textarea id="mdview-chat-input" rows="3" placeholder="Ask about or request edits to this doc..." autocomplete="off" aria-label="Chat message"></textarea>
+  </form>
+</aside>
+{{end}}
 <script>
   window.MDVIEW_MERMAID_THEME = "{{.MermaidTheme}}";
   window.MDVIEW_MERMAID_SECURITY = "{{.MermaidSecurity}}";
+  window.MDVIEW_CURRENT_FILE = {{.CurrentFile}};
+  window.MDVIEW_FILE_TREE = {{.FileTreeJSON}};
 </script>
 {{if .WatchMode}}
 <script src="/assets/mermaid.min.js"></script>
@@ -32,11 +65,475 @@
 <script>{{.MermaidInit}}</script>
 <script>{{.CopyJS}}</script>
 <script>{{.ZoomJS}}</script>
+{{if .HasFileTree}}
+<script>
+  (function () {
+    var explorer = document.getElementById('mdview-file-explorer');
+    var toggle = document.getElementById('mdview-file-explorer-toggle');
+    var treeRoot = document.getElementById('mdview-file-tree');
+    var doc = document.getElementById('mdview-document');
+    var tocList = document.getElementById('mdview-toc-list');
+    var collapsedKey = 'mdview-file-explorer-collapsed:' + location.pathname;
+    var cache = new Map();
+    var selectedButton = null;
+    if (!treeRoot || !doc) return;
+
+    function setExplorerCollapsed(collapsed) {
+      document.body.classList.toggle('file-explorer-collapsed', collapsed);
+      if (explorer) explorer.classList.toggle('collapsed', collapsed);
+      if (toggle) {
+        toggle.textContent = collapsed ? '›' : '‹';
+        toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+        toggle.setAttribute('aria-label', collapsed ? 'Expand file explorer' : 'Collapse file explorer');
+      }
+      try { localStorage.setItem(collapsedKey, collapsed ? '1' : '0'); } catch (_) {}
+    }
+
+    try { setExplorerCollapsed(localStorage.getItem(collapsedKey) === '1'); } catch (_) {}
+    if (toggle) toggle.addEventListener('click', function () {
+      setExplorerCollapsed(!document.body.classList.contains('file-explorer-collapsed'));
+    });
+
+    function setLoading(file) {
+      doc.innerHTML = '<div class="mdview-loading-state">Rendering ' + escapeHTML(file) + '…</div>';
+    }
+
+    function escapeHTML(value) {
+      return String(value || '').replace(/[&<>"']/g, function (ch) {
+        return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
+      });
+    }
+
+    function renderTOC(toc) {
+      if (!tocList) return;
+      tocList.innerHTML = '';
+      (toc || []).forEach(function (entry) {
+        var li = document.createElement('li');
+        li.className = 'toc-l' + entry.level;
+        var a = document.createElement('a');
+        a.href = '#' + entry.id;
+        a.textContent = entry.text;
+        li.appendChild(a);
+        tocList.appendChild(li);
+      });
+    }
+
+    function selectorEscape(value) {
+      if (window.CSS && CSS.escape) return CSS.escape(value);
+      return String(value).replace(/(["\\])/g, '\\$1');
+    }
+
+    function selectButton(file) {
+      if (selectedButton) selectedButton.classList.remove('selected');
+      selectedButton = treeRoot.querySelector('[data-file="' + selectorEscape(file) + '"]');
+      if (selectedButton) selectedButton.classList.add('selected');
+    }
+
+    function applyDocument(file, data) {
+      window.MDVIEW_CURRENT_FILE = file;
+      if (window.MDVIEW_CHAT_DOCUMENT_CHANGED) window.MDVIEW_CHAT_DOCUMENT_CHANGED(file);
+      doc.innerHTML = data.body || '<div class="mdview-empty-state">No rendered content.</div>';
+      renderTOC(data.toc || []);
+      selectButton(file);
+      if (data.title) document.title = data.title;
+      if (window.mdviewInitMermaid) window.mdviewInitMermaid();
+      if (window.mdviewInitCopyButtons) window.mdviewInitCopyButtons();
+      var url = new URL(location.href);
+      url.searchParams.set('file', file);
+      url.hash = '';
+      history.replaceState(null, '', url.toString());
+    }
+
+    function openFile(file) {
+      if (!file) return;
+      if (cache.has(file)) {
+        applyDocument(file, cache.get(file));
+        return;
+      }
+      setLoading(file);
+      fetch('/document?file=' + encodeURIComponent(file), { headers: { 'Accept': 'application/json' } })
+        .then(function (res) {
+          if (!res.ok) throw new Error('render failed: ' + res.status);
+          return res.json();
+        })
+        .then(function (data) {
+          cache.set(file, data);
+          applyDocument(file, data);
+        })
+        .catch(function (err) {
+          doc.innerHTML = '<div class="mdview-error-state">' + escapeHTML(err.message) + '</div>';
+        });
+    }
+
+    function makeTree(nodes) {
+      var ul = document.createElement('ul');
+      nodes.forEach(function (node) {
+        var li = document.createElement('li');
+        if (node.dir) {
+          var details = document.createElement('details');
+          details.open = true;
+          var summary = document.createElement('summary');
+          summary.textContent = node.name;
+          details.appendChild(summary);
+          details.appendChild(makeTree(node.children || []));
+          li.appendChild(details);
+        } else {
+          var button = document.createElement('button');
+          button.type = 'button';
+          button.textContent = node.name;
+          button.dataset.file = node.path || node.name;
+          button.addEventListener('click', function () { openFile(button.dataset.file); });
+          li.appendChild(button);
+        }
+        ul.appendChild(li);
+      });
+      return ul;
+    }
+
+    treeRoot.appendChild(makeTree(window.MDVIEW_FILE_TREE || []));
+    var initial = window.MDVIEW_CURRENT_FILE || new URL(location.href).searchParams.get('file') || '';
+    if (initial) openFile(initial);
+  })();
+</script>
+{{end}}
 {{if .WatchMode}}
 <script>
   (function () {
+    window.MDVIEW_CHAT_BUSY = false;
+    window.MDVIEW_RELOAD_DEFERRED = false;
+    window.MDVIEW_REQUEST_RELOAD = function () {
+      if (window.MDVIEW_CHAT_BUSY) {
+        window.MDVIEW_RELOAD_DEFERRED = true;
+        return;
+      }
+      location.reload();
+    };
     var es = new EventSource('/events');
-    es.addEventListener('reload', function () { location.reload(); });
+    es.addEventListener('reload', window.MDVIEW_REQUEST_RELOAD);
+  })();
+</script>
+{{end}}
+{{if .Contents}}
+<script>
+  (function () {
+    var toc = document.getElementById('mdview-toc');
+    var resizer = document.getElementById('mdview-toc-resizer');
+    var widthKey = 'mdview-toc-width:' + location.pathname;
+
+    function tocLeftOffset() {
+      var value = getComputedStyle(document.documentElement).getPropertyValue('--file-explorer-effective-width');
+      return parseInt(value, 10) || 0;
+    }
+
+    function setTocWidth(width) {
+      var min = 180;
+      var left = tocLeftOffset();
+      var max = Math.max(min, Math.min(520, window.innerWidth - left - 360));
+      var value = Math.max(min, Math.min(max, width));
+      document.documentElement.style.setProperty('--toc-width', value + 'px');
+      try { localStorage.setItem(widthKey, String(value)); } catch (_) {}
+    }
+
+    try {
+      var saved = parseInt(localStorage.getItem(widthKey), 10);
+      if (saved) setTocWidth(saved);
+    } catch (_) {}
+
+    if (resizer) {
+      resizer.addEventListener('pointerdown', function (ev) {
+        ev.preventDefault();
+        resizer.setPointerCapture(ev.pointerId);
+        document.body.classList.add('mdview-toc-resizing');
+        function move(moveEv) {
+          setTocWidth(moveEv.clientX - tocLeftOffset());
+        }
+        function up(upEv) {
+          try { resizer.releasePointerCapture(upEv.pointerId); } catch (_) {}
+          document.body.classList.remove('mdview-toc-resizing');
+          window.removeEventListener('pointermove', move);
+          window.removeEventListener('pointerup', up);
+        }
+        window.addEventListener('pointermove', move);
+        window.addEventListener('pointerup', up);
+      });
+      window.addEventListener('resize', function () {
+        var width = toc ? toc.getBoundingClientRect().width : 260;
+        setTocWidth(width);
+      });
+    }
+  })();
+</script>
+{{end}}
+{{if .Chat}}
+<script>
+  (function () {
+    var chat = document.getElementById('mdview-chat');
+    var resizer = document.getElementById('mdview-chat-resizer');
+    var form = document.getElementById('mdview-chat-form');
+    var input = document.getElementById('mdview-chat-input');
+    var messages = document.getElementById('mdview-chat-messages');
+    var selectionBox = document.getElementById('mdview-chat-selection');
+    var selectionText = document.getElementById('mdview-chat-selection-text');
+    var selectionClear = document.getElementById('mdview-chat-selection-clear');
+    var subtitle = document.querySelector('.mdview-chat-subtitle');
+    var token = {{.ChatToken}};
+    var chatAgent = {{.ChatAgent}};
+    var chatSession = {{.ChatSession}};
+    var activeChatFile = window.MDVIEW_CURRENT_FILE || '';
+    var storageKey = chatStorageKey(activeChatFile);
+    var widthKey = 'mdview-chat-width:' + location.pathname;
+    var attachedSelection = null;
+    var initialMessagesHTML = messages ? messages.innerHTML : '';
+
+    function chatStorageKey(file) {
+      return 'mdview-chat:' + location.pathname + ':' + (file || '') + ':' + (chatAgent || '') + ':' + (chatSession || '');
+    }
+
+    function updateChatSubtitle() {
+      if (!subtitle) return;
+      var parts = ['Experimental local agent sidebar'];
+      if (activeChatFile) parts.push(activeChatFile);
+      if (chatAgent) parts.push(chatAgent);
+      if (chatSession) parts.push(chatSession);
+      subtitle.textContent = parts.join(' · ');
+    }
+
+    function setChatWidth(width) {
+      var min = 280;
+      var max = Math.max(min, Math.min(720, window.innerWidth - 320));
+      var value = Math.max(min, Math.min(max, width));
+      document.documentElement.style.setProperty('--chat-width', value + 'px');
+      try { localStorage.setItem(widthKey, String(value)); } catch (_) {}
+    }
+
+    function restoreChatWidth() {
+      try {
+        var saved = parseInt(localStorage.getItem(widthKey), 10);
+        if (saved) setChatWidth(saved);
+      } catch (_) {}
+    }
+
+    function focusChatInput() {
+      if (!input) return;
+      window.setTimeout(function () {
+        if (input.disabled) return;
+        try {
+          input.focus({ preventScroll: true });
+        } catch (_) {
+          input.focus();
+        }
+      }, 0);
+    }
+
+    function initChatResize() {
+      if (!resizer) return;
+      resizer.addEventListener('pointerdown', function (ev) {
+        ev.preventDefault();
+        resizer.setPointerCapture(ev.pointerId);
+        document.body.classList.add('mdview-chat-resizing');
+        function move(moveEv) {
+          setChatWidth(window.innerWidth - moveEv.clientX);
+        }
+        function up(upEv) {
+          try { resizer.releasePointerCapture(upEv.pointerId); } catch (_) {}
+          document.body.classList.remove('mdview-chat-resizing');
+          window.removeEventListener('pointermove', move);
+          window.removeEventListener('pointerup', up);
+        }
+        window.addEventListener('pointermove', move);
+        window.addEventListener('pointerup', up);
+      });
+      window.addEventListener('resize', function () {
+        var width = chat ? chat.getBoundingClientRect().width : 360;
+        setChatWidth(width);
+      });
+    }
+
+    restoreChatWidth();
+    initChatResize();
+
+    function nearestHeading(node) {
+      var el = node && node.nodeType === Node.ELEMENT_NODE ? node : node && node.parentElement;
+      while (el && !el.matches('h1,h2,h3,h4,h5,h6')) {
+        var prev = el.previousElementSibling;
+        while (prev) {
+          if (prev.matches && prev.matches('h1,h2,h3,h4,h5,h6')) return prev;
+          prev = prev.previousElementSibling;
+        }
+        el = el.parentElement;
+        if (el && el.matches && el.matches('main.markdown-body')) break;
+      }
+      return el && el.matches && el.matches('h1,h2,h3,h4,h5,h6') ? el : null;
+    }
+
+    function updateSelectionDisplay() {
+      if (!attachedSelection) {
+        selectionBox.hidden = true;
+        selectionText.textContent = '';
+        return;
+      }
+      var preview = attachedSelection.text.replace(/\s+/g, ' ').trim();
+      if (preview.length > 120) preview = preview.slice(0, 117) + '…';
+      selectionText.textContent = 'Selection attached: “' + preview + '”';
+      selectionBox.hidden = false;
+    }
+
+    function captureSelection() {
+      var sel = window.getSelection();
+      if (!sel || sel.isCollapsed) return;
+      var text = sel.toString().trim();
+      if (!text) return;
+      var range = sel.rangeCount ? sel.getRangeAt(0) : null;
+      var container = range ? range.commonAncestorContainer : null;
+      var element = container && container.nodeType === Node.ELEMENT_NODE ? container : container && container.parentElement;
+      if (!element || !element.closest('main.markdown-body')) return;
+      var heading = nearestHeading(element);
+      attachedSelection = {
+        text: text,
+        anchor: heading ? heading.textContent.trim() : '',
+        url: heading && heading.id ? location.pathname + '#' + heading.id : location.pathname
+      };
+      updateSelectionDisplay();
+    }
+
+    document.addEventListener('selectionchange', function () {
+      window.clearTimeout(window.MDVIEW_SELECTION_TIMER);
+      window.MDVIEW_SELECTION_TIMER = window.setTimeout(captureSelection, 150);
+    });
+    selectionClear.addEventListener('click', function () {
+      attachedSelection = null;
+      updateSelectionDisplay();
+      input.focus();
+    });
+
+    function messageKind(el) {
+      return Array.prototype.filter.call(el.classList, function (name) {
+        return name !== 'mdview-chat-message' && name !== 'pending';
+      }).join(' ');
+    }
+
+    function persistMessages() {
+      try {
+        var saved = Array.prototype.map.call(messages.querySelectorAll('.mdview-chat-message'), function (el) {
+          return { kind: messageKind(el), text: el.textContent, html: el.dataset.mdviewHtml || '' };
+        });
+        sessionStorage.setItem(storageKey, JSON.stringify(saved));
+      } catch (_) {}
+    }
+
+    function restoreMessages() {
+      try {
+        var raw = sessionStorage.getItem(storageKey);
+        if (!raw) return;
+        var saved = JSON.parse(raw);
+        if (!Array.isArray(saved) || saved.length === 0) return;
+        messages.innerHTML = '';
+        saved.forEach(function (msg) {
+          var el = addMessage(msg.kind || 'assistant', msg.text || '', false);
+          if (msg.html) updateMessage(el, msg.kind || 'assistant rendered', msg.text || '', msg.html, false);
+        });
+      } catch (_) {}
+    }
+
+    function addMessage(kind, text, persist) {
+      var el = document.createElement('div');
+      el.className = 'mdview-chat-message ' + kind;
+      el.textContent = text;
+      messages.appendChild(el);
+      messages.scrollTop = messages.scrollHeight;
+      if (persist !== false) {
+        persistMessages();
+        focusChatInput();
+      }
+      return el;
+    }
+
+    function updateMessage(el, kind, text, html, persist) {
+      el.className = 'mdview-chat-message ' + kind;
+      if (html) {
+        el.dataset.mdviewHtml = html;
+        el.innerHTML = html;
+      } else {
+        delete el.dataset.mdviewHtml;
+        el.textContent = text;
+      }
+      messages.scrollTop = messages.scrollHeight;
+      if (persist !== false) {
+        persistMessages();
+        focusChatInput();
+      }
+    }
+
+    function setInputBusy(busy) {
+      window.MDVIEW_CHAT_BUSY = busy;
+      input.disabled = busy;
+      input.placeholder = busy ? 'Waiting for response...' : 'Ask about or request edits to this doc...';
+    }
+
+    function flushDeferredReload() {
+      if (!window.MDVIEW_RELOAD_DEFERRED) return;
+      window.MDVIEW_RELOAD_DEFERRED = false;
+      location.reload();
+    }
+
+    window.MDVIEW_CHAT_DOCUMENT_CHANGED = function (file) {
+      file = file || '';
+      if (file === activeChatFile) return;
+      activeChatFile = file;
+      storageKey = chatStorageKey(activeChatFile);
+      attachedSelection = null;
+      updateSelectionDisplay();
+      if (messages) messages.innerHTML = initialMessagesHTML;
+      updateChatSubtitle();
+      restoreMessages();
+      focusChatInput();
+    };
+
+    updateChatSubtitle();
+    restoreMessages();
+    focusChatInput();
+
+    function sendMessage() {
+      var text = input.value.trim();
+      if (!text) return;
+      var selection = attachedSelection;
+      input.value = '';
+      attachedSelection = null;
+      updateSelectionDisplay();
+      addMessage('user', selection ? text + '\n\n[selection attached]' : text);
+      var pending = addMessage('assistant pending', 'Thinking…');
+      setInputBusy(true);
+      fetch('/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Mdview-Token': token
+        },
+        body: JSON.stringify({ message: text, selection: selection, file: window.MDVIEW_CURRENT_FILE || '' })
+      }).then(function (res) {
+        if (!res.ok) throw new Error('chat request failed: ' + res.status);
+        return res.json();
+      }).then(function (data) {
+        updateMessage(pending, data.replyHtml ? 'assistant rendered' : 'assistant', data.reply || '(empty response)', data.replyHtml || '');
+      }).catch(function (err) {
+        updateMessage(pending, 'error', err.message);
+      }).finally(function () {
+        setInputBusy(false);
+        focusChatInput();
+        flushDeferredReload();
+      });
+    }
+
+    form.addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      sendMessage();
+    });
+
+    input.addEventListener('keydown', function (ev) {
+      if (ev.key !== 'Enter' || ev.shiftKey) return;
+      ev.preventDefault();
+      sendMessage();
+    });
   })();
 </script>
 {{end}}

@@ -9,6 +9,11 @@
   --err-bg: #2a1416;
   --err-border: #5c1a1f;
   --err-fg: #ff8a90;
+  --file-explorer-width: 260px;
+  --file-explorer-collapsed-width: 36px;
+  --file-explorer-effective-width: var(--file-explorer-width);
+  --toc-width: 260px;
+  --chat-width: 360px;
 }
 body[data-theme="dark"] {
   color-scheme: dark;
@@ -50,19 +55,162 @@ body {
   margin: 0 auto;
   padding: 2rem 1.5rem 4rem;
 }
-.mdview-toc {
+.mdview-file-explorer {
   position: fixed;
   top: 0;
   left: 0;
   bottom: 0;
-  width: 260px;
+  width: var(--file-explorer-width);
   border-right: 1px solid var(--border);
   background: var(--code-bg);
   overflow-y: auto;
   font-size: 0.9em;
+  z-index: 8;
+  transition: width 120ms ease;
+}
+body.file-explorer-collapsed {
+  --file-explorer-effective-width: var(--file-explorer-collapsed-width);
+}
+.mdview-file-explorer.collapsed {
+  width: var(--file-explorer-collapsed-width);
+  overflow: hidden;
+}
+.mdview-file-explorer-inner {
+  padding: 1.5rem 1rem;
+  min-width: var(--file-explorer-width);
+}
+.mdview-file-explorer.collapsed .mdview-file-explorer-inner {
+  display: none;
+}
+.mdview-file-explorer-toggle {
+  position: sticky;
+  top: 0.5rem;
+  float: right;
+  z-index: 2;
+  margin: 0.45rem 0.35rem 0 0;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--fg);
+  background: var(--bg);
+  cursor: pointer;
+  line-height: 1;
+}
+.mdview-file-explorer-toggle:hover {
+  border-color: var(--link);
+}
+.mdview-file-explorer.collapsed .mdview-file-explorer-toggle {
+  float: none;
+  display: block;
+  margin: 0.5rem auto;
+}
+.mdview-toc {
+  position: fixed;
+  top: 0;
+  left: var(--file-explorer-effective-width);
+  bottom: 0;
+  width: var(--toc-width);
+  border-right: 1px solid var(--border);
+  background: var(--code-bg);
+  overflow-y: auto;
+  font-size: 0.9em;
+  z-index: 7;
+}
+body:not(.has-file-explorer) .mdview-toc {
+  left: 0;
+}
+.mdview-toc-resizer {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  bottom: 0;
+  width: 8px;
+  cursor: col-resize;
+  touch-action: none;
+}
+.mdview-toc-resizer:hover,
+body.mdview-toc-resizing .mdview-toc-resizer {
+  background: color-mix(in srgb, var(--link) 35%, transparent);
+}
+body.mdview-toc-resizing {
+  cursor: col-resize;
+  user-select: none;
 }
 .mdview-toc-inner {
   padding: 1.5rem 1rem;
+}
+.mdview-file-tree-title {
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.75em;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin-bottom: 0.5rem;
+}
+.mdview-file-tree {
+  margin-bottom: 1rem;
+}
+.mdview-file-tree ul {
+  list-style: none;
+  margin: 0;
+  padding-left: 0.85rem;
+}
+.mdview-file-tree > ul { padding-left: 0; }
+.mdview-file-tree li { margin: 0.1rem 0; }
+.mdview-file-tree summary {
+  cursor: pointer;
+  color: var(--muted);
+  line-height: 1.35;
+  padding: 0.12rem 0.25rem;
+  border-radius: 4px;
+}
+.mdview-file-tree summary:hover { background: var(--bg); }
+.mdview-file-tree button {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-radius: 4px;
+  padding: 0.16rem 0.35rem;
+  color: var(--link);
+  background: transparent;
+  font: inherit;
+  font-size: 0.92em;
+  line-height: 1.3;
+  text-align: left;
+  cursor: pointer;
+}
+.mdview-file-tree button:hover,
+.mdview-file-tree button.selected {
+  background: var(--bg);
+  text-decoration: underline;
+}
+.mdview-file-tree button.selected {
+  color: var(--fg);
+  font-weight: 600;
+}
+.mdview-empty-state,
+.mdview-loading-state,
+.mdview-error-state {
+  margin: 10vh auto 0;
+  max-width: 640px;
+  padding: 1.25rem 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--muted);
+  background: var(--code-bg);
+  text-align: center;
+}
+.mdview-loading-state::after {
+  content: "";
+  display: inline-block;
+  width: 1.2em;
+  animation: mdview-chat-dots 1.2s steps(4, end) infinite;
+}
+.mdview-error-state {
+  color: var(--err-fg);
+  border-color: var(--err-border);
+  background: var(--err-bg);
 }
 .mdview-toc-title {
   font-weight: 600;
@@ -96,13 +244,194 @@ body {
 .mdview-toc .toc-l4 { padding-left: 2.25rem; font-size: 0.95em; }
 .mdview-toc .toc-l5 { padding-left: 3rem; font-size: 0.9em; }
 .mdview-toc .toc-l6 { padding-left: 3.75rem; font-size: 0.9em; }
-body.has-toc .markdown-body {
-  margin-left: 260px;
-  max-width: calc(900px + 1.5rem);
+body.has-file-explorer {
+  padding-left: var(--file-explorer-effective-width);
+}
+body.has-toc {
+  padding-left: var(--toc-width);
+}
+body.has-file-explorer.has-toc {
+  padding-left: calc(var(--file-explorer-effective-width) + var(--toc-width));
+}
+body.has-chat {
+  padding-right: var(--chat-width);
+}
+.mdview-chat {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: var(--chat-width);
+  border-left: 1px solid var(--border);
+  background: var(--code-bg);
+  display: flex;
+  flex-direction: column;
+  z-index: 10;
+}
+.mdview-chat-resizer {
+  position: absolute;
+  top: 0;
+  left: -4px;
+  bottom: 0;
+  width: 8px;
+  cursor: col-resize;
+  touch-action: none;
+}
+.mdview-chat-resizer:hover,
+body.mdview-chat-resizing .mdview-chat-resizer {
+  background: color-mix(in srgb, var(--link) 35%, transparent);
+}
+body.mdview-chat-resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+.mdview-chat-header {
+  padding: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+.mdview-chat-title {
+  font-weight: 600;
+}
+.mdview-chat-subtitle {
+  color: var(--muted);
+  font-size: 0.8em;
+}
+.mdview-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+}
+.mdview-chat-message {
+  margin: 0 0 0.75rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  white-space: pre-wrap;
+}
+.mdview-chat-message.user {
+  border-color: var(--link);
+}
+.mdview-chat-message.rendered {
+  white-space: normal;
+}
+.mdview-chat-message.rendered > :first-child { margin-top: 0; }
+.mdview-chat-message.rendered > :last-child { margin-bottom: 0; }
+.mdview-chat-message.rendered p,
+.mdview-chat-message.rendered ul,
+.mdview-chat-message.rendered ol,
+.mdview-chat-message.rendered blockquote { margin: 0 0 0.75em; }
+.mdview-chat-message.rendered pre {
+  background: var(--code-bg);
+  padding: 0.75em;
+  border-radius: 6px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+.mdview-chat-message.rendered code {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.9em;
+  background: var(--code-bg);
+  padding: 0.15em 0.3em;
+  border-radius: 4px;
+}
+.mdview-chat-message.rendered pre code {
+  background: none;
+  padding: 0;
+}
+.mdview-chat-message.rendered a { color: var(--link); }
+.mdview-chat-message.system {
+  color: var(--muted);
+  font-size: 0.9em;
+}
+.mdview-chat-message.pending {
+  color: var(--muted);
+  font-style: italic;
+}
+.mdview-chat-message.pending::after {
+  content: "";
+  display: inline-block;
+  width: 1.2em;
+  animation: mdview-chat-dots 1.2s steps(4, end) infinite;
+}
+@keyframes mdview-chat-dots {
+  0% { content: ""; }
+  25% { content: "."; }
+  50% { content: ".."; }
+  75%, 100% { content: "..."; }
+}
+.mdview-chat-message.error {
+  color: var(--err-fg);
+  background: var(--err-bg);
+  border-color: var(--err-border);
+}
+.mdview-chat-selection {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1rem;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.85em;
+  background: var(--bg);
+}
+.mdview-chat-selection[hidden] {
+  display: none;
+}
+.mdview-chat-selection span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mdview-chat-selection button {
+  font: inherit;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  width: 1.6rem;
+  height: 1.6rem;
+  cursor: pointer;
+}
+.mdview-chat-selection button:hover {
+  color: var(--fg);
+  border-color: var(--link);
+}
+.mdview-chat-form {
+  padding: 1rem;
+  border-top: 1px solid var(--border);
+}
+.mdview-chat-form textarea {
+  display: block;
+  width: 100%;
+  resize: vertical;
+  min-height: 3rem;
+  max-height: 10rem;
+  font: inherit;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.5rem;
+}
+.mdview-chat-form textarea:disabled {
+  opacity: 0.75;
+  cursor: wait;
+}
+@media (max-width: 1000px) {
+  .mdview-chat {
+    position: static;
+    width: auto;
+    min-height: 320px;
+    border-left: 0;
+    border-top: 1px solid var(--border);
+  }
+  body.has-chat { padding-right: 0; }
 }
 @media (max-width: 800px) {
   .mdview-toc { display: none; }
-  body.has-toc .markdown-body { margin-left: auto; }
+  body.has-toc { padding-left: 0; }
 }
 .markdown-body h1,
 .markdown-body h2,

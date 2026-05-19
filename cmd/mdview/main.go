@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/spf13/cobra"
@@ -36,23 +38,34 @@ func main() {
 
 func newRootCmd() *cobra.Command {
 	var (
-		watch    bool
-		light    bool
-		unsafe   bool
-		pdfMode  bool
-		htmlMode bool
-		force    bool
-		contents bool
+		watch       bool
+		light       bool
+		unsafe      bool
+		pdfMode     bool
+		htmlMode    bool
+		force       bool
+		contents    bool
+		chat        bool
+		chatAgent   string
+		chatSession string
 	)
 
 	cmd := &cobra.Command{
-		Use:   "mdview <file.md>",
-		Short: "Render a markdown file in your browser (GFM + Mermaid + syntax highlighting)",
+		Use:   "mdview <file-or-directory>",
+		Short: "Render markdown in your browser (GFM + Mermaid + syntax highlighting)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			path := args[0]
-			if _, err := os.Stat(path); err != nil {
-				return fmt.Errorf("stat %s: %w", path, err)
+			info, err := ensureInputPath(cmd, path)
+			if err != nil {
+				return err
+			}
+			if info.IsDir() {
+				if pdfMode || htmlMode {
+					return fmt.Errorf("directory input cannot be used with --pdf or --html")
+				}
+				watch = true
+				contents = true
 			}
 			theme := render.ThemeDark
 			if light {
@@ -61,7 +74,19 @@ func newRootCmd() *cobra.Command {
 			if pdfMode {
 				theme = render.ThemeLight
 			}
-			opts := render.Options{Theme: theme, Unsafe: unsafe, Contents: contents}
+			if chat {
+				if pdfMode || htmlMode {
+					return fmt.Errorf("--chat cannot be used with --pdf or --html")
+				}
+				watch = true
+				if chatAgent == "" {
+					chatAgent = "pi"
+				}
+			}
+			opts := render.Options{Theme: theme, Unsafe: unsafe, Contents: contents, Chat: chat, ChatAgent: chatAgent, ChatSession: chatSession}
+			if (chatAgent != "" || chatSession != "") && !chat {
+				return fmt.Errorf("--chat-agent and --chat-session require --chat")
+			}
 			if watch {
 				return server.Run(cmd.Context(), path, opts)
 			}
@@ -81,10 +106,66 @@ func newRootCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&htmlMode, "html", false, "render to HTML next to the input file and open it")
 	cmd.Flags().BoolVar(&force, "force", false, "overwrite an existing output file when using --pdf or --html")
 	cmd.Flags().BoolVarP(&contents, "contents", "c", false, "show a table-of-contents sidebar with header links")
+	cmd.Flags().BoolVar(&chat, "chat", false, "show an experimental document chat sidebar and imply watch mode")
+	cmd.Flags().StringVar(&chatAgent, "chat-agent", "", "chat backend to use with --chat (experimental)")
+	cmd.Flags().StringVar(&chatSession, "chat-session", "", "chat backend session identifier to use with --chat (experimental)")
 	cmd.MarkFlagsMutuallyExclusive("watch", "pdf", "html")
 	cmd.Version = fmt.Sprintf("%s (commit %s, built %s)", version, commit, date)
 	cmd.SilenceUsage = true
 	return cmd
+}
+
+func ensureInputPath(cmd *cobra.Command, path string) (os.FileInfo, error) {
+	info, err := os.Stat(path)
+	if err == nil {
+		return info, nil
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("stat %s: %w", path, err)
+	}
+
+	create, err := confirmCreateInputFile(cmd, path)
+	if err != nil {
+		return nil, err
+	}
+	if !create {
+		return nil, fmt.Errorf("file %s does not exist", path)
+	}
+	if err := createInputFile(path); err != nil {
+		return nil, err
+	}
+	info, err = os.Stat(path)
+	if err != nil {
+		return nil, fmt.Errorf("stat %s: %w", path, err)
+	}
+	return info, nil
+}
+
+func confirmCreateInputFile(cmd *cobra.Command, path string) (bool, error) {
+	_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "%s does not exist. Create it? [y/N] ", path)
+	answer, err := bufio.NewReader(cmd.InOrStdin()).ReadString('\n')
+	if err != nil && !errors.Is(err, io.EOF) {
+		return false, fmt.Errorf("read confirmation: %w", err)
+	}
+	answer = strings.ToLower(strings.TrimSpace(answer))
+	return answer == "y" || answer == "yes", nil
+}
+
+func createInputFile(path string) error {
+	dir := filepath.Dir(path)
+	if dir != "." && dir != "" {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			return fmt.Errorf("create parent directory %s: %w", dir, err)
+		}
+	}
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600) // #nosec G304 -- path is an intentional CLI input path
+	if err != nil {
+		return fmt.Errorf("create %s: %w", path, err)
+	}
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("close %s: %w", path, err)
+	}
+	return nil
 }
 
 func runOnce(path string, opts render.Options) error {
