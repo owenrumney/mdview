@@ -52,12 +52,19 @@ func Run(ctx context.Context, path string, opts render.Options) error {
 		return err
 	}
 	var backend chatBackend
-	if opts.Chat && opts.ChatAgent == "pi" {
-		backend, err = newPiRPCBackend(ctx, abs)
+	if opts.Chat {
+		switch opts.ChatAgent {
+		case "pi":
+			backend, err = newPiRPCBackend(ctx, abs)
+		case "claude":
+			backend, err = newClaudeRPCBackend(ctx, abs, opts.ChatSession)
+		}
 		if err != nil {
 			return err
 		}
-		defer func() { _ = backend.Close() }()
+		if backend != nil {
+			defer func() { _ = backend.Close() }()
+		}
 	}
 
 	mux := http.NewServeMux()
@@ -455,6 +462,12 @@ func chatReply(ctx context.Context, path, message string, selection *chatSelecti
 			return backend.Reply(ctx, path, message, selection)
 		}
 		return piChatReply(ctx, path, message, selection)
+	}
+	if opts.ChatAgent == "claude" {
+		if backend == nil {
+			return "", errors.New("claude chat backend is not running")
+		}
+		return backend.Reply(ctx, path, message, selection)
 	}
 	if opts.ChatAgent == "watchtower" {
 		if opts.ChatSession == "" {
