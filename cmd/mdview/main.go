@@ -107,8 +107,8 @@ func newRootCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&force, "force", false, "overwrite an existing output file when using --pdf or --html")
 	cmd.Flags().BoolVarP(&contents, "contents", "c", false, "show a table-of-contents sidebar with header links")
 	cmd.Flags().BoolVar(&chat, "chat", false, "show an experimental document chat sidebar and imply watch mode")
-	cmd.Flags().StringVar(&chatAgent, "chat-agent", "", "chat backend to use with --chat (experimental)")
-	cmd.Flags().StringVar(&chatSession, "chat-session", "", "chat backend session identifier to use with --chat (experimental)")
+	cmd.Flags().StringVar(&chatAgent, "chat-agent", "", "chat backend to use with --chat: pi (default), claude, or watchtower (experimental)")
+	cmd.Flags().StringVar(&chatSession, "chat-session", "", "existing session id to resume; for --chat-agent claude it maps to claude --resume, for watchtower to --session (experimental)")
 	cmd.MarkFlagsMutuallyExclusive("watch", "pdf", "html")
 	cmd.Version = fmt.Sprintf("%s (commit %s, built %s)", version, commit, date)
 	cmd.SilenceUsage = true
