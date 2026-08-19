@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"time"
 
 	"github.com/yuin/goldmark"
 	highlighting "github.com/yuin/goldmark-highlighting/v2"
@@ -53,17 +54,27 @@ const (
 //go:embed assets/mermaid.min.js
 var MermaidJS []byte
 
+// CopyJS and ZoomJS are the browser behaviours that go with rendered markdown:
+// copy buttons on code blocks, and click-to-zoom on images and diagrams. A host
+// page embedding a Document should serve both.
+//
 //go:embed assets/copy-buttons.js
-var copyJS string
+var CopyJS string
 
 //go:embed assets/zoom.js
-var zoomJS string
+var ZoomJS string
 
 //go:embed assets/mermaid-init.js
 var mermaidInitJS string
 
-//go:embed assets/style.css
-var styleCSS string
+// MarkdownCSS styles rendered markdown and nothing else. Every rule is scoped
+// to .markdown-body, so a host page can load it without its own layout moving.
+//
+//go:embed assets/markdown.css
+var MarkdownCSS string
+
+//go:embed assets/chrome.css
+var chromeCSS string
 
 //go:embed page.html.tmpl
 var pageTmplSrc string
@@ -86,6 +97,9 @@ type Options struct {
 	DirFiles    []FileEntry
 	CurrentFile string
 	HasDocument bool
+
+	// Idle is how long to stay up with no browser attached. Zero stays up.
+	Idle time.Duration
 }
 
 type pageData struct {
@@ -179,11 +193,11 @@ func page(title string, body []byte, toc []TOCEntry, opts Options) ([]byte, erro
 	}
 	data := pageData{
 		Title:           title,
-		Body:            template.HTML(body),        // #nosec G203 -- output of trusted goldmark renderer
-		StyleCSS:        template.CSS(styleCSS),     // #nosec G203 -- embedded constant
-		CopyJS:          template.JS(copyJS),        // #nosec G203 -- embedded constant
-		ZoomJS:          template.JS(zoomJS),        // #nosec G203 -- embedded constant
-		MermaidInit:     template.JS(mermaidInitJS), // #nosec G203 -- embedded constant
+		Body:            template.HTML(body),                   // #nosec G203 -- output of trusted goldmark renderer
+		StyleCSS:        template.CSS(MarkdownCSS + chromeCSS), // #nosec G203 -- embedded constants
+		CopyJS:          template.JS(CopyJS),                   // #nosec G203 -- embedded constant
+		ZoomJS:          template.JS(ZoomJS),                   // #nosec G203 -- embedded constant
+		MermaidInit:     template.JS(mermaidInitJS),            // #nosec G203 -- embedded constant
 		WatchMode:       opts.WatchMode,
 		Theme:           string(opts.Theme),
 		MermaidTheme:    mermaidThemeFor(opts.Theme),
@@ -311,6 +325,17 @@ func headingText(h *ast.Heading, src []byte) string {
 		return ast.WalkContinue, nil
 	})
 	return buf.String()
+}
+
+// MermaidInit returns the script that boots mermaid for a page, with the theme
+// and security mode already applied. A host page runs this after loading
+// MermaidJS.
+func MermaidInit(theme Theme, unsafe bool) string {
+	if theme == "" {
+		theme = ThemeDark
+	}
+	return fmt.Sprintf("window.MDVIEW_MERMAID_THEME = %q;\nwindow.MDVIEW_MERMAID_SECURITY = %q;\n%s",
+		mermaidThemeFor(theme), mermaidSecurityFor(unsafe), mermaidInitJS)
 }
 
 func mermaidThemeFor(t Theme) string {

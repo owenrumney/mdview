@@ -1,20 +1,14 @@
+/* mdview page furniture: theming, layout, file explorer, contents, chat.
+   Not needed by a host page that only renders markdown. */
+
 :root {
-  --bg: #0d1117;
-  --fg: #c9d1d9;
-  --muted: #8b949e;
-  --border: #30363d;
-  --code-bg: #161b22;
-  --link: #58a6ff;
-  --copied: #3fb950;
-  --err-bg: #2a1416;
-  --err-border: #5c1a1f;
-  --err-fg: #ff8a90;
   --file-explorer-width: 260px;
   --file-explorer-collapsed-width: 36px;
   --file-explorer-effective-width: var(--file-explorer-width);
   --toc-width: 260px;
   --chat-width: 360px;
 }
+
 body[data-theme="dark"] {
   color-scheme: dark;
   --bg: #0d1117;
@@ -50,11 +44,7 @@ body {
   color: var(--fg);
   background: var(--bg);
 }
-.markdown-body {
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 2rem 1.5rem 4rem;
-}
+
 .mdview-file-explorer {
   position: fixed;
   top: 0;
@@ -432,168 +422,4 @@ body.mdview-chat-resizing {
 @media (max-width: 800px) {
   .mdview-toc { display: none; }
   body.has-toc { padding-left: 0; }
-}
-.markdown-body h1,
-.markdown-body h2,
-.markdown-body h3,
-.markdown-body h4,
-.markdown-body h5,
-.markdown-body h6 {
-  margin-top: 1.5em;
-  margin-bottom: 0.5em;
-  font-weight: 600;
-  line-height: 1.25;
-}
-.markdown-body h1 { font-size: 2em; border-bottom: 1px solid var(--border); padding-bottom: 0.3em; }
-.markdown-body h2 { font-size: 1.5em; border-bottom: 1px solid var(--border); padding-bottom: 0.3em; }
-.markdown-body h3 { font-size: 1.25em; }
-.markdown-body p,
-.markdown-body ul,
-.markdown-body ol,
-.markdown-body blockquote { margin: 0 0 1em; }
-.markdown-body a { color: var(--link); text-decoration: none; }
-.markdown-body a:hover { text-decoration: underline; }
-.markdown-body blockquote {
-  border-left: 4px solid var(--border);
-  padding: 0 1em;
-  color: var(--muted);
-}
-.markdown-body code {
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-  font-size: 0.9em;
-  background: var(--code-bg);
-  padding: 0.2em 0.4em;
-  border-radius: 4px;
-}
-.markdown-body pre {
-  position: relative;
-  background: var(--code-bg);
-  padding: 1em;
-  border-radius: 6px;
-  overflow: auto;
-  white-space: pre-wrap;
-  word-break: break-word;
-  break-inside: avoid;
-}
-.markdown-body table,
-.markdown-body figure,
-.markdown-body blockquote { break-inside: avoid; }
-.markdown-body h1,
-.markdown-body h2,
-.markdown-body h3,
-.markdown-body h4,
-.markdown-body h5,
-.markdown-body h6 { break-after: avoid; }
-.markdown-body pre code {
-  background: none;
-  padding: 0;
-  font-size: 0.9em;
-}
-.markdown-body pre.mermaid {
-  background: transparent;
-  padding: 1em;
-  text-align: center;
-  white-space: normal;
-  word-break: normal;
-}
-.markdown-body table {
-  border-collapse: collapse;
-  margin: 1em 0;
-}
-.markdown-body th,
-.markdown-body td {
-  border: 1px solid var(--border);
-  padding: 0.4em 0.8em;
-}
-.markdown-body th { background: var(--code-bg); }
-.markdown-body img { max-width: 100%; cursor: zoom-in; }
-.markdown-body a img { cursor: pointer; }
-.markdown-body pre.mermaid svg { cursor: zoom-in; }
-.markdown-body hr {
-  height: 1px;
-  background: var(--border);
-  border: 0;
-  margin: 2em 0;
-}
-.markdown-body input[type="checkbox"] { margin-right: 0.4em; }
-.copy-btn {
-  position: absolute;
-  top: 0.5em;
-  right: 0.5em;
-  padding: 0.25em 0.6em;
-  font-size: 0.75em;
-  font-family: inherit;
-  background: var(--bg);
-  color: var(--fg);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.15s;
-}
-.markdown-body pre:hover .copy-btn,
-.markdown-body pre:focus-within .copy-btn { opacity: 1; }
-.copy-btn.copied { color: var(--copied); border-color: var(--copied); }
-.mermaid-error {
-  margin: 1em 0;
-  padding: 1em;
-  border: 1px solid var(--err-border);
-  background: var(--err-bg);
-  color: var(--err-fg);
-  border-radius: 6px;
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-  font-size: 0.85em;
-}
-.mermaid-error strong {
-  display: block;
-  margin-bottom: 0.5em;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-size: 0.95em;
-}
-.mermaid-error pre {
-  margin: 0 0 0.5em;
-  background: transparent;
-  padding: 0;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-.mermaid-error .mermaid-error-src {
-  margin-top: 0.75em;
-  padding-top: 0.75em;
-  border-top: 1px solid var(--err-border);
-  color: var(--fg);
-  opacity: 0.8;
-}
-.mdview-zoom-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.85);
-  display: none;
-  align-items: center;
-  justify-content: center;
-  padding: 2rem;
-  z-index: 9999;
-  cursor: zoom-out;
-}
-.mdview-zoom-overlay.open { display: flex; }
-.mdview-zoom-content {
-  width: 95vw;
-  height: 95vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.mdview-zoom-content img {
-  max-width: 95vw;
-  max-height: 95vh;
-  width: auto;
-  height: auto;
-  background: var(--bg);
-  border-radius: 6px;
-}
-.mdview-zoom-content svg {
-  width: 95vw;
-  height: 95vh;
-  background: var(--bg);
-  border-radius: 6px;
 }

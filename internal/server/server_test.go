@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/owenrumney/mdview/internal/render"
+	"github.com/owenrumney/mdview/render"
 )
 
 func TestHandleChatRequiresToken(t *testing.T) {

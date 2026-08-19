@@ -22,7 +22,7 @@ import (
 	"github.com/fsnotify/fsnotify"
 
 	"github.com/owenrumney/mdview/internal/browser"
-	"github.com/owenrumney/mdview/internal/render"
+	"github.com/owenrumney/mdview/render"
 )
 
 func Run(ctx context.Context, path string, opts render.Options) error {
@@ -176,6 +176,13 @@ func Run(ctx context.Context, path string, opts render.Options) error {
 	}
 
 	go watchLoop(ctx, watcher, watchTarget, hub)
+
+	// Nothing else ends this process. Without it, closing the tab leaves mdview
+	// and its chat agent resident for as long as the machine is up — four of
+	// them, weeks old, holding a claude subprocess each.
+	ctx, stopIdle := context.WithCancel(ctx)
+	defer stopIdle()
+	go watchIdle(ctx, hub, opts.Idle, stopIdle)
 
 	serverErr := make(chan error, 1)
 	go func() {
@@ -552,6 +559,61 @@ func watchDirs(w *fsnotify.Watcher, root string) error {
 	})
 }
 
+// idleCheck is how often an unwatched mdview notices it has been left.
+const idleCheck = 30 * time.Second
+
+// idleGrace is the shortest a watch-mode run will ever live. Opening a browser
+// takes a moment, and exiting before it connects would look like a crash.
+var idleGrace = 15 * time.Second
+
+// watchIdle ends the process once no browser has been attached for idle. A
+// zero idle keeps it up, for a terminal you are sitting in front of.
+func watchIdle(ctx context.Context, hub *reloadHub, idle time.Duration, stop context.CancelFunc) {
+	if idle <= 0 {
+		return
+	}
+
+	// Check often enough that the answer is not stale by most of the window:
+	// a 30s poll against --idle 1m means anything from one to two minutes.
+	every := idleCheck
+	if idle < every {
+		every = idle
+	}
+	if every < time.Millisecond {
+		every = time.Millisecond
+	}
+
+	ticker := time.NewTicker(every)
+	defer ticker.Stop()
+
+	// Measured from the last time anyone was watching, or from startup if
+	// nobody ever has.
+	started := time.Now()
+	lastSeen := started
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if hub.attached() > 0 {
+				lastSeen = time.Now()
+				continue
+			}
+			// A floor on the whole lifetime as well, so a browser that is slow
+			// to open is not raced by a short --idle.
+			if time.Since(started) < idleGrace {
+				continue
+			}
+			if quiet := time.Since(lastSeen); quiet >= idle {
+				slog.Info("no browser attached, shutting down", "for", quiet.Round(time.Second))
+				stop()
+				return
+			}
+		}
+	}
+}
+
 func watchLoop(ctx context.Context, w *fsnotify.Watcher, target string, hub *reloadHub) {
 	var (
 		mu      sync.Mutex
@@ -647,6 +709,14 @@ func (h *reloadHub) unsubscribe(ch chan struct{}) {
 	delete(h.clients, ch)
 	h.mu.Unlock()
 	close(ch)
+}
+
+// attached is how many browsers are listening. A tab that has gone takes its
+// SSE connection with it, so this is what "somebody is watching" means.
+func (h *reloadHub) attached() int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return len(h.clients)
 }
 
 func (h *reloadHub) broadcast() int {

@@ -11,13 +11,14 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/owenrumney/mdview/internal/browser"
 	"github.com/owenrumney/mdview/internal/pdf"
-	"github.com/owenrumney/mdview/internal/render"
 	"github.com/owenrumney/mdview/internal/server"
+	"github.com/owenrumney/mdview/render"
 )
 
 var (
@@ -48,6 +49,7 @@ func newRootCmd() *cobra.Command {
 		chat        bool
 		chatAgent   string
 		chatSession string
+		idle        time.Duration
 	)
 
 	cmd := &cobra.Command{
@@ -83,7 +85,11 @@ func newRootCmd() *cobra.Command {
 					chatAgent = "pi"
 				}
 			}
-			opts := render.Options{Theme: theme, Unsafe: unsafe, Contents: contents, Chat: chat, ChatAgent: chatAgent, ChatSession: chatSession}
+			opts := render.Options{
+				Theme: theme, Unsafe: unsafe, Contents: contents,
+				Chat: chat, ChatAgent: chatAgent, ChatSession: chatSession,
+				Idle: idle,
+			}
 			if (chatAgent != "" || chatSession != "") && !chat {
 				return fmt.Errorf("--chat-agent and --chat-session require --chat")
 			}
@@ -109,6 +115,8 @@ func newRootCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&chat, "chat", false, "show an experimental document chat sidebar and imply watch mode")
 	cmd.Flags().StringVar(&chatAgent, "chat-agent", "", "chat backend to use with --chat: pi (default), claude, or watchtower (experimental)")
 	cmd.Flags().StringVar(&chatSession, "chat-session", "", "existing session id to resume; for --chat-agent claude it maps to claude --resume, for watchtower to --session (experimental)")
+	cmd.Flags().DurationVar(&idle, "idle", 30*time.Minute,
+		"in watch mode, exit after this long with no browser attached (0 to stay up)")
 	cmd.MarkFlagsMutuallyExclusive("watch", "pdf", "html")
 	cmd.Version = fmt.Sprintf("%s (commit %s, built %s)", version, commit, date)
 	cmd.SilenceUsage = true
